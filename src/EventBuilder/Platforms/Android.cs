@@ -4,6 +4,7 @@
 
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace EventBuilder.Platforms
 {
@@ -14,11 +15,22 @@ namespace EventBuilder.Platforms
     /// <seealso cref="BasePlatform" />
     public class Android : BasePlatform
     {
+        private readonly string _referenceAssembliesLocation;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Android" /> class.
         /// </summary>
         /// <param name="referenceAssembliesLocation">The reference assemblies location.</param>
         public Android(string referenceAssembliesLocation)
+        {
+            _referenceAssembliesLocation = referenceAssembliesLocation;
+        }
+
+        /// <inheritdoc />
+        public override AutoPlatform Platform => AutoPlatform.Android;
+
+        /// <inheritdoc />
+        public override Task Extract()
         {
             if (PlatformHelper.IsRunningOnMono())
             {
@@ -39,7 +51,7 @@ namespace EventBuilder.Platforms
             {
                 var assemblies =
                    Directory.GetFiles(
-                       Path.Combine(referenceAssembliesLocation, "MonoAndroid"),
+                       Path.Combine(_referenceAssembliesLocation, "MonoAndroid"),
                        "Mono.Android.dll",
                        SearchOption.AllDirectories);
 
@@ -48,11 +60,10 @@ namespace EventBuilder.Platforms
                 Assemblies.Add(latestVersion);
 
                 CecilSearchDirectories.Add(Path.GetDirectoryName(latestVersion));
-                CecilSearchDirectories.Add(Path.Combine(referenceAssembliesLocation, "MonoAndroid", "v1.0"));
+                CecilSearchDirectories.Add(Path.Combine(_referenceAssembliesLocation, "MonoAndroid", "v1.0"));
             }
-        }
 
-        /// <inheritdoc />
-        public override AutoPlatform Platform => AutoPlatform.Android;
+            return Task.CompletedTask;
+        }
     }
 }

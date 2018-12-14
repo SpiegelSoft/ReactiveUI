@@ -120,8 +120,8 @@ Task("GenerateEvents")
     .IsDependentOn("BuildEventBuilder")
     .Does (() =>
 {
-    var eventBuilder = "./src/EventBuilder/bin/Release/net461/EventBuilder.exe";
-    var workingDirectory = "./src/EventBuilder/bin/Release/Net461";
+    var eventBuilder = "./src/EventBuilder/bin/Release/net462/EventBuilder.exe";
+    var workingDirectory = "./src/EventBuilder/bin/Release/Net462";
     var referenceAssembliesPath = vsLocation.CombineWithFilePath("./Common7/IDE/ReferenceAssemblies/Microsoft/Framework");
 
     Information(referenceAssembliesPath.ToString());

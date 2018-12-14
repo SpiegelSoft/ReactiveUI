@@ -7,11 +7,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
+using CommandLine;
 using EventBuilder.Cecil;
 using EventBuilder.Platforms;
 using Mono.Cecil;
-using Nustache.Core;
 using Serilog;
+using Stubble.Core.Builders;
 using Parser = CommandLine.Parser;
 
 namespace EventBuilder
@@ -21,13 +23,11 @@ namespace EventBuilder
         private static string _mustacheTemplate = "DefaultTemplate.mustache";
         private static string _referenceAssembliesLocation = @"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework";
 
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.AppSettings()
                 .CreateLogger();
-
-            var options = new CommandLineOptions();
 
             // allow app to be debugged in visual studio.
             if (Debugger.IsAttached)
@@ -42,112 +42,115 @@ namespace EventBuilder
                 // };
             }
 
-            // Parse in 'strict mode'; i.e. success or quit
-            if (Parser.Default.ParseArgumentsStrict(args, options))
-            {
-                try
+            await new Parser(parserSettings => parserSettings.CaseInsensitiveEnumValues = true).ParseArguments<CommandLineOptions>(args).MapResult(
+                async options =>
                 {
-                    if (!string.IsNullOrWhiteSpace(options.Template))
+                    try
                     {
-                        _mustacheTemplate = options.Template;
-
-                        Log.Debug("Using {template} instead of the default template.", _mustacheTemplate);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(options.ReferenceAssemblies))
-                    {
-                        _referenceAssembliesLocation = options.ReferenceAssemblies;
-                        Log.Debug($"Using {_referenceAssembliesLocation} instead of the default reference assemblies location.");
-                    }
-
-                    IPlatform platform = null;
-                    switch (options.Platform)
-                    {
-                    case AutoPlatform.None:
-                        if (!options.Assemblies.Any())
+                        if (!string.IsNullOrWhiteSpace(options.Template))
                         {
-                            throw new Exception("Assemblies to be used for manual generation were not specified.");
+                            _mustacheTemplate = options.Template;
+
+                            Log.Debug("Using {template} instead of the default template.", _mustacheTemplate);
                         }
 
-                        platform = new Bespoke();
-                        platform.Assemblies.AddRange(options.Assemblies);
-
-                        if (PlatformHelper.IsRunningOnMono())
+                        if (!string.IsNullOrWhiteSpace(options.ReferenceAssemblies))
                         {
-                            platform.CecilSearchDirectories.AddRange(platform.Assemblies.Select(Path.GetDirectoryName).Distinct().ToList());
-                        }
-                        else
-                        {
-                            platform.CecilSearchDirectories.Add(@"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5");
+                            _referenceAssembliesLocation = options.ReferenceAssemblies;
+                            Log.Debug($"Using {_referenceAssembliesLocation} instead of the default reference assemblies location.");
                         }
 
-                        break;
+                        IPlatform platform = null;
+                        switch (options.Platform)
+                        {
+                            case AutoPlatform.None:
+                                if (options.Assemblies.Any() == false)
+                                {
+                                    throw new Exception("Assemblies to be used for manual generation were not specified.");
+                                }
 
-                    case AutoPlatform.Android:
-                        platform = new Android(_referenceAssembliesLocation);
-                        break;
+                                platform = new Bespoke();
+                                platform.Assemblies.AddRange(options.Assemblies);
 
-                    case AutoPlatform.iOS:
-                        platform = new iOS(_referenceAssembliesLocation);
-                        break;
+                                if (PlatformHelper.IsRunningOnMono())
+                                {
+                                    platform.CecilSearchDirectories.AddRange(platform.Assemblies.Select(Path.GetDirectoryName).Distinct().ToList());
+                                }
+                                else
+                                {
+                                    platform.CecilSearchDirectories.Add(@"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5");
+                                }
 
-                    case AutoPlatform.Mac:
-                        platform = new Mac(_referenceAssembliesLocation);
-                        break;
+                                break;
 
-                    case AutoPlatform.TVOS:
-                        platform = new TVOS(_referenceAssembliesLocation);
-                        break;
+                            case AutoPlatform.Android:
+                                platform = new Android(_referenceAssembliesLocation);
+                                break;
 
-                    case AutoPlatform.WPF:
-                        platform = new WPF();
-                        break;
+                            case AutoPlatform.iOS:
+                                platform = new iOS(_referenceAssembliesLocation);
+                                break;
 
-                    case AutoPlatform.XamForms:
-                        platform = new XamForms();
-                        break;
+                            case AutoPlatform.Mac:
+                                platform = new Mac(_referenceAssembliesLocation);
+                                break;
 
-                    case AutoPlatform.Tizen:
-                        platform = new Tizen();
-                        break;
+                            case AutoPlatform.TVOS:
+                                platform = new TVOS(_referenceAssembliesLocation);
+                                break;
 
-                    case AutoPlatform.UWP:
-                        platform = new UWP();
-                        break;
+                            case AutoPlatform.WPF:
+                                platform = new WPF();
+                                break;
 
-                    case AutoPlatform.Winforms:
-                        platform = new Winforms();
-                        break;
+                            case AutoPlatform.XamForms:
+                                platform = new XamForms();
+                                break;
 
-                    case AutoPlatform.Essentials:
-                        platform = new Essentials();
-                        _mustacheTemplate = "XamarinEssentialsTemplate.mustache";
-                        break;
+                            case AutoPlatform.Tizen:
+                                platform = new Tizen();
+                                break;
 
-                    default:
-                        throw new ArgumentException($"Platform not {options.Platform} supported");
+                            case AutoPlatform.UWP:
+                                platform = new UWP();
+                                break;
+
+                            case AutoPlatform.Winforms:
+                                platform = new Winforms();
+                                break;
+
+                            case AutoPlatform.Essentials:
+                                platform = new Essentials();
+                                _mustacheTemplate = "XamarinEssentialsTemplate.mustache";
+                                break;
+
+                            default:
+                                throw new ArgumentException($"Platform not {options.Platform} supported");
+                        }
+
+                        await ExtractEventsFromAssemblies(platform).ConfigureAwait(false);
+
+                        Environment.Exit((int)ExitCode.Success);
                     }
-
-                    ExtractEventsFromAssemblies(platform);
-
-                    Environment.Exit((int)ExitCode.Success);
-                }
-                catch (Exception ex)
-                {
-                    Log.Fatal(ex.ToString());
-
-                    if (Debugger.IsAttached)
+                    catch (Exception ex)
                     {
-                        Debugger.Break();
-                    }
-                }
-            }
+                        Log.Fatal(ex.ToString());
 
-            Environment.Exit((int)ExitCode.Error);
+                        if (Debugger.IsAttached)
+                        {
+                            Debugger.Break();
+                        }
+                    }
+
+                    Environment.Exit((int)ExitCode.Error);
+                },
+                _ => Task.CompletedTask).ConfigureAwait(false);
         }
 
-        public static void ExtractEventsFromAssemblies(IPlatform platform)
+        private static async Task ExtractEventsFromAssemblies(IPlatform platform)
         {
+            await platform.Extract().ConfigureAwait(false);
+
             Log.Debug("Extracting events from the following assemblies: {assemblies}", platform.Assemblies);
 
             Log.Debug("Using the following search directories: {assemblies}", platform.CecilSearchDirectories);
@@ -161,7 +164,6 @@ namespace EventBuilder
             var targetAssemblies = platform.Assemblies.Select(x => AssemblyDefinition.ReadAssembly(x, rp)).ToArray();
 
             Log.Debug("Using {template} as the mustache template", _mustacheTemplate);
-            var template = File.ReadAllText(_mustacheTemplate, Encoding.UTF8);
 
             var namespaceData = Array.Empty<Entities.NamespaceInfo>();
 
@@ -177,18 +179,21 @@ namespace EventBuilder
 
             var delegateData = DelegateTemplateInformation.Create(targetAssemblies);
 
-            var result = Render.StringToString(
-                template,
-                new { Namespaces = namespaceData, DelegateNamespaces = delegateData })
-                .Replace("System.String", "string")
-                .Replace("System.Object", "object")
-                .Replace("&lt;", "<")
-                .Replace("&gt;", ">")
-                .Replace("`1", string.Empty)
-                .Replace("`2", string.Empty)
-                .Replace("`3", string.Empty);
+            using (var streamReader = new StreamReader(_mustacheTemplate, Encoding.UTF8))
+            {
+                var template = await streamReader.ReadToEndAsync().ConfigureAwait(false);
+                var stubble = new StubbleBuilder().Build();
+                var result = (await stubble.RenderAsync(template, new { Namespaces = namespaceData, DelegateNamespaces = delegateData }).ConfigureAwait(false))
+                    .Replace("System.String", "string")
+                    .Replace("System.Object", "object")
+                    .Replace("&lt;", "<")
+                    .Replace("&gt;", ">")
+                    .Replace("`1", string.Empty)
+                    .Replace("`2", string.Empty)
+                    .Replace("`3", string.Empty);
 
-            Console.WriteLine(result);
+                Console.WriteLine(result);
+            }
         }
     }
 }
