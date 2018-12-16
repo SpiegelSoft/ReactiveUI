@@ -8,6 +8,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using EventBuilder.NuGet;
 using NuGet;
+using NuGet.Packaging.Core;
+using NuGet.Versioning;
 using Polly;
 using Serilog;
 
@@ -19,8 +21,10 @@ namespace EventBuilder.Platforms
     /// <seealso cref="EventBuilder.Platforms.BasePlatform" />
     public class XamForms : BasePlatform
     {
-        private const string _packageName = "Xamarin.Forms";
-        private const string _packageVersion = "3.0.0.561731";
+        private readonly PackageIdentity[] _packageNames = new[]
+        {
+            new PackageIdentity("Xamarin.Forms", new NuGetVersion("3.3.0.967583")),
+        };
 
         /// <inheritdoc />
         public override AutoPlatform Platform => AutoPlatform.XamForms;
@@ -28,11 +32,9 @@ namespace EventBuilder.Platforms
         /// <inheritdoc />
         public async override Task Extract()
         {
-            var packageUnzipPath = Environment.CurrentDirectory;
+            var packageUnzipPath = await NuGetPackageHelper.InstallPackages(_packageNames, Platform).ConfigureAwait(false);
 
-            Log.Debug("Package unzip path is {PackageUnzipPath}", packageUnzipPath);
-
-            await NuGetPackageHelper.InstallPackage(_packageName, packageUnzipPath, _packageVersion).ConfigureAwait(false);
+            Log.Debug($"Package unzip path is {packageUnzipPath}");
 
             var xamarinForms =
                 Directory.GetFiles(
@@ -51,7 +53,7 @@ namespace EventBuilder.Platforms
             }
             else
             {
-                CecilSearchDirectories.Add(@"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.1\Facades");
+                CecilSearchDirectories.Add(@"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2\Facades");
             }
         }
     }

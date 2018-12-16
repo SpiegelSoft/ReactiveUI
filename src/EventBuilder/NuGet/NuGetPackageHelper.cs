@@ -2,19 +2,16 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using EventBuilder.NuGet;
-using NuGet.Common;
 using NuGet.Configuration;
+using NuGet.Frameworks;
 using NuGet.PackageManagement;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.ProjectManagement;
-using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Resolver;
-using NuGet.Versioning;
 using Polly;
 using Serilog;
 
@@ -28,16 +25,29 @@ namespace EventBuilder.NuGet
         /// <summary>
         /// Installs a nuget package into the specified directory.
         /// </summary>
-        /// <param name="packageName">The name of the package to find.</param>
-        /// <param name="packageRoot">The directory where to root folder will be.</param>
-        /// <param name="versionId">The version of the package to find.</param>
-        /// <returns>A task to monitor the progress.</returns>
-        public static async Task InstallPackage(string packageName, string packageRoot, string versionId)
+        /// <param name="packageIdentities">The identities of the packages to find.</param>
+        /// <param name="platform">The name of the platform.</param>
+        /// <param name="framework">Optional framework parameter which will force NuGet to evaluate as the specified Framework. If null it will use .NET Standard 2.0.</param>
+        /// <returns>The directory where the NuGet packages are unzipped to.</returns>
+        public static async Task<string> InstallPackages(IEnumerable<PackageIdentity> packageIdentities, AutoPlatform platform, NuGetFramework framework = null)
+        {
+            var packageUnzipPath = Path.Combine(Path.GetTempPath(), "EventBuilder.NuGet", platform.ToString());
+            if (!Directory.Exists(packageUnzipPath))
+            {
+                Directory.CreateDirectory(packageUnzipPath);
+            }
+
+            await Task.WhenAll(packageIdentities.Select(x => InstallPackage(x, packageUnzipPath, framework))).ConfigureAwait(false);
+
+            return packageUnzipPath;
+        }
+
+        private static async Task InstallPackage(PackageIdentity packageIdentity, string packageRoot, NuGetFramework framework)
         {
             var packagesPath = Path.Combine(packageRoot, "packages");
-            var settings = Settings.LoadDefaultSettings(packageRoot, null, new NuGetMachineWideSettings());
+            var settings = Settings.LoadDefaultSettings(packageRoot, null, new XPlatMachineWideSetting());
             var sourceRepositoryProvider = new SourceRepositoryProvider(settings);
-            var folder = new FolderNuGetProject(packageRoot);
+            var folder = new FolderNuGetProject(packageRoot, new PackagePathResolver(packageRoot), framework ?? FrameworkConstants.CommonFrameworks.NetStandard20);
             var packageManager = new NuGetPackageManager(sourceRepositoryProvider, settings, packagesPath)
             {
                 PackagesFolderNuGetProject = folder
@@ -50,8 +60,6 @@ namespace EventBuilder.NuGet
                 VersionConstraints.None);
             var projectContext = new NuGetProjectContext(settings);
 
-            var packageIdentity = new PackageIdentity(packageName, new NuGetVersion(versionId));
-
             var retryPolicy = Policy
                 .Handle<Exception>()
                 .WaitAndRetryAsync(
@@ -61,7 +69,7 @@ namespace EventBuilder.NuGet
                     {
                         Log.Warning(
                             "An exception was thrown whilst retrieving or installing {0}: {1}",
-                            packageName,
+                            packageIdentity,
                             exception);
                     });
 

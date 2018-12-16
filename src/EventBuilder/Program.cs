@@ -4,6 +4,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -32,14 +33,7 @@ namespace EventBuilder
             // allow app to be debugged in visual studio.
             if (Debugger.IsAttached)
             {
-                // args = "--help ".Split(' ');
-                args = "--platform=essentials".Split(' ');
-
-                // args = new[]
-                // {
-                //    "--platform=none",
-                //    @"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\Xamarin.iOS\v1.0\Xamarin.iOS.dll"
-                // };
+                args = "--platform=essentials --output-path=test.txt".Split(' ');
             }
 
             await new Parser(parserSettings => parserSettings.CaseInsensitiveEnumValues = true).ParseArguments<CommandLineOptions>(args).MapResult(
@@ -107,7 +101,7 @@ namespace EventBuilder
                                 platform = new XamForms();
                                 break;
 
-                            case AutoPlatform.Tizen:
+                            case AutoPlatform.Tizen4:
                                 platform = new Tizen();
                                 break;
 
@@ -128,7 +122,7 @@ namespace EventBuilder
                                 throw new ArgumentException($"Platform not {options.Platform} supported");
                         }
 
-                        await ExtractEventsFromAssemblies(platform).ConfigureAwait(false);
+                        await ExtractEventsFromAssemblies(options.OutputPath, platform).ConfigureAwait(false);
 
                         Environment.Exit((int)ExitCode.Success);
                     }
@@ -147,7 +141,8 @@ namespace EventBuilder
                 _ => Task.CompletedTask).ConfigureAwait(false);
         }
 
-        private static async Task ExtractEventsFromAssemblies(IPlatform platform)
+        [SuppressMessage("Globalization", "CA1307: Specify StringComparison", Justification = "Replace overload is for .NET Standard only")]
+        private static async Task ExtractEventsFromAssemblies(string outputPath, IPlatform platform)
         {
             await platform.Extract().ConfigureAwait(false);
 
@@ -192,7 +187,7 @@ namespace EventBuilder
                     .Replace("`2", string.Empty)
                     .Replace("`3", string.Empty);
 
-                Console.WriteLine(result);
+                await File.WriteAllTextAsync(outputPath, result).ConfigureAwait(false);
             }
         }
     }

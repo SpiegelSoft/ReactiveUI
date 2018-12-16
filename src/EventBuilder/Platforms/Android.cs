@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -56,7 +57,7 @@ namespace EventBuilder.Platforms
                        SearchOption.AllDirectories);
 
                 // Pin to a particular framework version https://github.com/reactiveui/ReactiveUI/issues/1517
-                var latestVersion = assemblies.Last(x => x.Contains("v8.1"));
+                var latestVersion = assemblies.Last(x => x.Contains("v8.1", StringComparison.InvariantCulture));
                 Assemblies.Add(latestVersion);
 
                 CecilSearchDirectories.Add(Path.GetDirectoryName(latestVersion));

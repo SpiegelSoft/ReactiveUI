@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using EventBuilder.NuGet;
 using NuGet;
+using NuGet.Packaging.Core;
+using NuGet.Versioning;
 using Polly;
 using Serilog;
 
@@ -15,8 +17,10 @@ namespace EventBuilder.Platforms
     /// <seealso cref="EventBuilder.Platforms.BasePlatform" />
     public class Essentials : BasePlatform
     {
-        private const string _packageName = "Xamarin.Essentials";
-        private const string _packageVersion = "1.0.0";
+        private readonly PackageIdentity[] _packageNames = new[]
+        {
+            new PackageIdentity("Xamarin.Essentials", new NuGetVersion("1.0.0")),
+        };
 
         /// <inheritdoc />
         public override AutoPlatform Platform => AutoPlatform.Essentials;
@@ -24,9 +28,9 @@ namespace EventBuilder.Platforms
         /// <inheritdoc />
         public async override Task Extract()
         {
-            var packageUnzipPath = Environment.CurrentDirectory;
+            var packageUnzipPath = await NuGetPackageHelper.InstallPackages(_packageNames, Platform).ConfigureAwait(false);
 
-            await NuGetPackageHelper.InstallPackage(_packageName, packageUnzipPath, _packageVersion).ConfigureAwait(false);
+            Log.Debug($"Package unzip path is {packageUnzipPath}");
 
             var xamarinForms =
                 Directory.GetFiles(
@@ -34,7 +38,7 @@ namespace EventBuilder.Platforms
                     "Xamarin.Essentials.dll",
                     SearchOption.AllDirectories);
 
-            var latestVersion = xamarinForms.First(x => x.Contains("netstandard1.0"));
+            var latestVersion = xamarinForms.First(x => x.Contains("netstandard1.0", StringComparison.InvariantCulture));
             Assemblies.Add(latestVersion);
 
             if (PlatformHelper.IsRunningOnMono())

@@ -2,13 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using EventBuilder.NuGet;
-using Polly;
+using NuGet.Frameworks;
+using NuGet.Packaging.Core;
+using NuGet.Versioning;
 using Serilog;
 
 namespace EventBuilder.Platforms
@@ -19,29 +18,30 @@ namespace EventBuilder.Platforms
     /// <seealso cref="EventBuilder.Platforms.BasePlatform" />
     public class Tizen : BasePlatform
     {
-        private const string _packageName = "Tizen.NET";
-        private const string _packageVersion = "5.0.0.14562";
+        private readonly PackageIdentity[] _packageNames = new[]
+        {
+            new PackageIdentity("Tizen.Net", new NuGetVersion("5.0.0.14562")),
+            new PackageIdentity("NetStandard.Library", new NuGetVersion("2.0.0")),
+        };
 
         /// <inheritdoc />
-        public override AutoPlatform Platform => AutoPlatform.Tizen;
+        public override AutoPlatform Platform => AutoPlatform.Tizen4;
 
         /// <inheritdoc />
         public async override Task Extract()
         {
-            var packageUnzipPath = Environment.CurrentDirectory;
-
-            await NuGetPackageHelper.InstallPackage(_packageName, packageUnzipPath, _packageVersion).ConfigureAwait(false);
+            var packageUnzipPath = await NuGetPackageHelper.InstallPackages(_packageNames, Platform, FrameworkConstants.CommonFrameworks.Tizen4).ConfigureAwait(false);
 
             Log.Debug($"Package unzip path is {packageUnzipPath}");
 
-            var elmSharp = Directory.GetFiles(packageUnzipPath, "ElmSharp*.dll", SearchOption.AllDirectories);
-            Assemblies.AddRange(elmSharp);
+            Assemblies.AddRange(Directory.GetFiles(packageUnzipPath, "ElmSharp*.dll", SearchOption.AllDirectories));
+            Assemblies.AddRange(Directory.GetFiles(packageUnzipPath, "Tizen*.dll", SearchOption.AllDirectories));
+            Assemblies.AddRange(Directory.GetFiles(packageUnzipPath, "netstandard.dll", SearchOption.AllDirectories));
 
-            var tizenNet = Directory.GetFiles(packageUnzipPath, "Tizen*.dll", SearchOption.AllDirectories);
-            Assemblies.AddRange(tizenNet);
-
-            CecilSearchDirectories.Add($"{packageUnzipPath}\\Tizen.NET.{_packageVersion}\\build\\tizen40\\ref");
-            CecilSearchDirectories.Add($"{packageUnzipPath}\\Tizen.NET.{_packageVersion}\\lib\\netstandard2.0");
+            foreach (var directory in Directory.GetDirectories(packageUnzipPath, "*.*", SearchOption.AllDirectories))
+            {
+                CecilSearchDirectories.Add(directory);
+            }
         }
     }
 }

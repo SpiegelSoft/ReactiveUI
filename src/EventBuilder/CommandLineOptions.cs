@@ -20,6 +20,12 @@ namespace EventBuilder
         public AutoPlatform Platform { get; set; }
 
         /// <summary>
+        /// Gets or sets the path where to output the contents.
+        /// </summary>
+        [Option('o', "output-path", Required = true, HelpText = "The file path where to output the contents.")]
+        public string OutputPath { get; set; }
+
+        /// <summary>
         /// Gets or sets the template.
         /// </summary>
         [Option('t', "template", Required = false, HelpText = "Specify another mustache template other than the default.")]
