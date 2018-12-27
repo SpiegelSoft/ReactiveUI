@@ -273,6 +273,8 @@ Task("UploadTestCoverage")
     var token = EnvironmentVariable("COVERALLS_TOKEN");
     if (!string.IsNullOrEmpty(token))
     {
+        Information("Upload {0} to Coveralls server.", testCoverageOutputFile);
+
         CoverallsIo(testCoverageOutputFile, new CoverallsIoSettings()
         {
             RepoToken = token
