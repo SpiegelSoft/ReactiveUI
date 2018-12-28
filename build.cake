@@ -57,7 +57,7 @@ var informationalVersion = EnvironmentVariable("GitAssemblyInformationalVersion"
 // Artifacts
 var artifactDirectory = "./artifacts/";
 var testsArtifactDirectory = artifactDirectory + "tests/";
-var testCoverageOutputFile = testsArtifactDirectory + "OpenCover.xml";
+var testCoverageOutputFile = MakeAbsolute(File(testsArtifactDirectory + "OpenCover.xml"));
 var packageWhitelist = new[] { "ReactiveUI.Testing",
                                "ReactiveUI.Events",
                                "ReactiveUI.Events.WPF",
@@ -273,11 +273,11 @@ Task("UploadTestCoverage")
     var token = EnvironmentVariable("COVERALLS_TOKEN");
     if (!string.IsNullOrEmpty(token))
     {
-        Information("Upload {0} to Coveralls server.", testCoverageOutputFile);
+        Information("Upload {0} to Coveralls server", testCoverageOutputFile);
 
         CoverallsIo(testCoverageOutputFile, new CoverallsIoSettings()
         {
-            RepoToken = token
+             RepoToken = token
         });
     }
 });
